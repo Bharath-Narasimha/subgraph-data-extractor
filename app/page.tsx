@@ -8,12 +8,14 @@ export default function Home() {
   const [query, setQuery] = useState<string>('');
   const [log, setLog] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
+  const [displayData,setDisplayData]=useState<string[]>([]);
 
   const appendLog = (msg: string) => setLog((prev) => [...prev, msg]);
 
   const handleDownload = async () => {
     setLoading(true);
     setLog([]);
+    setDisplayData([]);
 
     let skip = 0;
     let chunk = 0;
@@ -42,7 +44,15 @@ export default function Home() {
           appendLog('No more data or all results empty. Stopping.');
           break;
         }
-
+     const values=Object.values(entityData);
+const currentBatch=values[0] as unknown;
+if (Array.isArray(currentBatch)) {
+  if (currentBatch.length < 1000) {
+    appendLog(`Final batch received with ${currentBatch.length} entries`);
+    setDisplayData(currentBatch);
+    break;
+  }
+}
         const filename = `subgraph_chunk_${chunk}.json`;
         const blob = new Blob([JSON.stringify(data, null, 2)], {
           type: 'application/json',
@@ -87,8 +97,6 @@ export default function Home() {
         className="w-full p-2 border rounded"
       />
 
-      
-
       <textarea
         rows={8}
         placeholder="Enter your GraphQL query here..."
@@ -116,6 +124,14 @@ export default function Home() {
         {log.map((entry, i) => (
           <div key={i}>{entry}</div>
         ))}
+        {displayData.length > 0 && (
+  <div className="mt-4">
+    <h2 className="text-lg font-bold">Final Batch Data</h2>
+    <pre className="bg-gray-100 p-4 rounded max-h-[400px] overflow-y-auto text-sm">
+      {JSON.stringify(displayData, null, 2)}
+    </pre>
+  </div>
+)}
       </div>
     </div>
     </div>
