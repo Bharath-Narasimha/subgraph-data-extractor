@@ -1,99 +1,122 @@
 'use client';
-import {useState} from 'react'
-export default function Home() {
-  const [API_KEY, setAPI_KEY] = useState("");
-  const [SUBGRAPH_ID, setSUBGRAPH_ID] = useState("");
-  const [QUERY, setQUERY] = useState("");
-  const [message, setMessage] = useState("");
-  const [result, setResult] = useState("");
 
-  const handleFetch = async () => {
-    if (!API_KEY || !SUBGRAPH_ID || !QUERY) {
-setMessage('Please fil All fields');
-return;
-    }
-    setMessage('Fetching data...');
-    const url=`https://gateway.thegraph.com/api/${API_KEY}/subgraphs/id/${SUBGRAPH_ID}`;
-    try{
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          query: QUERY,
-        }),
-      });
-      const data = await response.json();
-      if(response.ok){
-        console.log(data);
-        setResult(JSON.stringify(data, null, 2));
-        setMessage("Data fetched Successfully");
-      }else{
-        setMessage(data.errors[0].message);
+import { useState } from 'react';
+
+export default function Home() {
+  const [subgraphId, setSubgraphId] = useState<string>('');
+  const [apiKey, setApiKey] = useState<string>('');
+  const [query, setQuery] = useState<string>('');
+  const [log, setLog] = useState<string[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+
+  const appendLog = (msg: string) => setLog((prev) => [...prev, msg]);
+
+  const handleDownload = async () => {
+    setLoading(true);
+    setLog([]);
+
+    let skip = 0;
+    let chunk = 0;
+
+    try {
+      while (true) {
+        appendLog(`Fetching skip=${skip}...`);
+
+        const res = await fetch('/api/fetch-events', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ subgraphId, apiKey, query, skip }),
+        });
+
+        const data = await res.json();
+
+        const entityData: Record<string, unknown[]> = data?.data;
+
+        if (
+          !res.ok ||
+          !entityData ||
+          Object.values(entityData).every(
+            (arr) => !Array.isArray(arr) || arr.length === 0
+          )
+        ) {
+          appendLog('No more data or all results empty. Stopping.');
+          break;
+        }
+
+        const filename = `subgraph_chunk_${chunk}.json`;
+        const blob = new Blob([JSON.stringify(data, null, 2)], {
+          type: 'application/json',
+        });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(url);
+
+        appendLog(`Saved ${filename}`);
+
+        skip += 1000;
+        chunk += 1;
       }
-    }catch(error){
-      console.log(error);
-        setMessage('faied to fetch. Please Check console for more details...');
-      }
+    } catch (err: unknown) {
+      const message =
+        err instanceof Error ? err.message : 'Unknown error occurred';
+      appendLog(`Error: ${message}`);
     }
-    
+
+    setLoading(false);
+  };
+
   return (
     <div className='min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8 space-y-6'>
     <div className='w-full max-w-md space-y-4'>
-      <input className='w-full p-2 border rounded'
-      type='text'
-      placeholder='Enter API Key'
-      value={API_KEY}
-      onChange={(e) => setAPI_KEY(e.target.value)}
+      
+      <input
+        type="text"
+        placeholder="Enter API Key"
+        value={apiKey}
+        onChange={(e) => setApiKey(e.target.value)}
+        className="w-full p-2 border rounded"
       />
-      <input className='w-full p-2 border rounded'
-      type='text'
-      placeholder='Enter Subgraph ID'
-      value={SUBGRAPH_ID}
-      onChange={(e) => setSUBGRAPH_ID(e.target.value)}
+      <input
+        type="text"
+        placeholder="Enter Subgraph ID"
+        value={subgraphId}
+        onChange={(e) => setSubgraphId(e.target.value)}
+        className="w-full p-2 border rounded"
       />
-      <textarea className='w-full p-3 font-mono text-sm bg-gray-900 text-green-200 border border-gray-700 rounded shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500'
-        rows={8}
-        placeholder='Enter Query'
-        value={QUERY}
-        onChange={(e) => setQUERY(e.target.value)}
-></textarea>
 
-  <div className='text-sm text-gray-500'>
+      
+
+      <textarea
+        rows={8}
+        placeholder="Enter your GraphQL query here..."
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        className="w-full p-3 font-mono text-sm bg-gray-900 text-green-200 border border-gray-700 rounded shadow-inner focus:outline-none focus:ring-2 focus:ring-blue-500"
+      />
+<div className='text-sm text-gray-500'>
     URL Preview:
     <br/>
     <span className="text-blue-600 font-mono">
-       https://gateway.thegraph.com/api/{API_KEY || '[api-key]'}/subgraphs/id/{SUBGRAPH_ID || '[subgraph-id]'}
+       https://gateway.thegraph.com/api/{apiKey || '[api-key]'}/subgraphs/id/{subgraphId || '[subgraph-id]'}
     </span>
   </div>
-      <button onClick={handleFetch}
-      className='w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700'>
-        fetch Data
+      <button
+        onClick={handleDownload}
+        className="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700"
+        disabled={loading}
+      >
+        {loading ? 'Downloading...' : 'Start Download'}
       </button>
-      {message&& (<div className='text-center text-sm text-red-600 mt-2'>{message}</div>)}
-      {result && (
-        <div>
-        <pre className='bg-black text-green-300 p-4 rounded overflow-auto max-h-96'>
-          {result}
-        </pre>
-        <button
-      onClick={() => {
-        const blob = new Blob([result], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = "result.json";
-        a.click();
-        URL.revokeObjectURL(url);
-        setMessage("Download started");
-      }}
-      className="mt-3 bg-green-600 text-white font-semibold py-2 px-4 rounded hover:bg-green-700 text-sm"
-    >
-      Download JSON
-    </button>
-    </div>
-      )}
+
+      <div className="mt-6 bg-gray-100 p-3 rounded text-sm h-64">
+       
+        {log.map((entry, i) => (
+          <div key={i}>{entry}</div>
+        ))}
+      </div>
     </div>
     </div>
   );
