@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import JSZip from 'jszip';
 
 export default function Home() {
   const [subgraphId, setSubgraphId] = useState<string>('');
@@ -8,19 +9,21 @@ export default function Home() {
   const [query, setQuery] = useState<string>('');
   const [log, setLog] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [displayData, setDisplayData] = useState<string[]>([]);
+  //const [displayData, setDisplayData] = useState<string[]>([]);
   const [downloadFrequency, setDownloadFrequency] = useState<number>(5); // Download every 5 skips (5000 records)
+  const [zipFileName, setZipFileName] = useState<string>('data.zip'); // New state for zip file name
 
   const appendLog = (msg: string) => setLog((prev) => [...prev, msg]);
 
   const handleDownload = async () => {
     setLoading(true);
     setLog([]);
-    setDisplayData([]);
+    //setDisplayData([]);
 
     let skip = 0;
     let chunk = 0;
     let accumulatedData: any[] = [];
+    let jsonChunks: { name: string, content: string }[] = [];
 
     try {
       while (true) {
@@ -63,26 +66,10 @@ export default function Home() {
           // Add current batch to accumulated data
           accumulatedData = accumulatedData.concat(currentBatch);
           
-          console.log('After concat - accumulatedData length:', accumulatedData.length);
-          console.log('First few items in accumulated data:', accumulatedData.slice(0, 3));
-          
-          // Update display data to show accumulated data
-     
-          
+         
           // Check if we should download based on frequency (for both regular and final batches)
           if (accumulatedData.length > 0 && (skip / 1000) % downloadFrequency === 0 && skip > 0) {
-            const filename = `subgraph_chunk_${chunk}.json`;
-            const blob = new Blob([JSON.stringify({ data: accumulatedData }, null, 2)], {
-              type: 'application/json',
-            });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            URL.revokeObjectURL(url);
-
-            appendLog(`Saved ${filename} with ${accumulatedData.length} entries (after ${downloadFrequency} skips)`);
+            jsonChunks.push({ name: `chunk_${chunk}.json`, content: JSON.stringify({ data: accumulatedData }, null, 2) });
             
             // Reset accumulated data and increment chunk counter
             accumulatedData = [];
@@ -91,15 +78,29 @@ export default function Home() {
           
           if (currentBatch.length < 1000) {
             appendLog(`Final batch received with ${currentBatch.length} entries`);
-            if (accumulatedData.length < downloadFrequency * 1000) {
-              appendLog(`Process completed. Total ${accumulatedData.length} entries collected and displayed on screen.`);
-              setDisplayData(accumulatedData);
+            if (accumulatedData.length > 0) {
+              jsonChunks.push({ name: `chunk_${chunk}.json`, content: JSON.stringify({ data: accumulatedData }, null, 2) });
             }
             break;
           }
         
 
         skip += 1000;
+      }
+
+      if (jsonChunks.length > 0) {
+        const zip = new JSZip();
+        jsonChunks.forEach(chunk => {
+          zip.file(chunk.name, chunk.content);
+        });
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = zipFileName.endsWith('.zip') ? zipFileName : zipFileName + '.zip';
+        a.click();
+        URL.revokeObjectURL(url);
+        appendLog(`Downloaded zip file: ${zipFileName}`);
       }
     } catch (err: unknown) {
       const message =
@@ -156,6 +157,13 @@ export default function Home() {
        https://gateway.thegraph.com/api/{apiKey || '[api-key]'}/subgraphs/id/{subgraphId || '[subgraph-id]'}
     </span>
   </div>
+      <input
+        type="text"
+        placeholder="Enter zip file name"
+        value={zipFileName}
+        onChange={e => setZipFileName(e.target.value)}
+        className="w-full p-2 border rounded"
+      />
       <button
         onClick={handleDownload}
         className="w-full bg-blue-600 text-white font-semibold py-2 px-4 rounded hover:bg-blue-700"
@@ -169,14 +177,6 @@ export default function Home() {
         {log.map((entry, i) => (
           <div key={i}>{entry}</div>
         ))}
-        {displayData.length > 0 && (
-  <div className="mt-4">
-    <h2 className="text-lg font-bold">Accumulated Data ({displayData.length} total entries)</h2>
-    <pre className="bg-gray-100 p-4 rounded max-h-[400px] overflow-y-auto text-sm">
-      {JSON.stringify(displayData, null, 2)}
-    </pre>
-  </div>
-)}
       </div>
     </div>
     </div>
