@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const topLevelEntities = Array.from(query.matchAll(/^\s*(\w+)\s*{/gm))
       .map(([, entity]) => entity)
       .filter((e) => !['query', 'mutation', 'subscription'].includes(e));
-
+      console.log('Top-level entities:', topLevelEntities);
     async function getOrderByField(entity: string): Promise<string> {
       const introspectionQuery = {
         query: `{
@@ -49,9 +49,9 @@ export async function POST(req: NextRequest) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(introspectionQuery),
       });
-
+    
       const json: IntrospectionResponse = await res.json();
-
+     console.log('introspection query response:',json)
       const fields = json.data?.__type?.fields?.map(f => f.name) || [];
 
       return fields.includes('timestamp') ? 'timestamp'
@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
     const orderByMap: Record<string, string> = {};
     for (const entity of topLevelEntities) {
       orderByMap[entity] = await getOrderByField(entity);
+      console.log(`Order by for ${entity}:`, orderByMap[entity]);
     }
 
     const modifiedQuery = query.replace(
@@ -73,6 +74,7 @@ export async function POST(req: NextRequest) {
         return `${indent}${field}(first: 1000, skip: ${skip}, orderBy: ${orderBy}, orderDirection: asc)${space}${brace}`;
       }
     );
+    console.log('Modified GraphQL query:', modifiedQuery);
 
     const response = await fetch(url, {
       method: 'POST',
@@ -82,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     const data = await response.json();
     return new Response(JSON.stringify(data), { status: 200 });
-
+    
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: 'Server error', message: err.message }),
