@@ -8,7 +8,8 @@ export default function Home() {
   const [query, setQuery] = useState<string>('');
   const [log, setLog] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
-  const [displayData,setDisplayData]=useState<string[]>([]);
+  const [displayData, setDisplayData] = useState<string[]>([]);
+  const [downloadFrequency, setDownloadFrequency] = useState<number>(5); // Download every 5 skips (5000 records)
 
   const appendLog = (msg: string) => setLog((prev) => [...prev, msg]);
 
@@ -19,6 +20,7 @@ export default function Home() {
 
     let skip = 0;
     let chunk = 0;
+    let accumulatedData: any[] = [];
 
     try {
       while (true) {
@@ -31,9 +33,10 @@ export default function Home() {
         });
 
         const data = await res.json();
-
+        console.log('Full response data:', data);
         const entityData: Record<string, unknown[]> = data?.data;
-
+       console.log('Entity data:', entityData);
+        
         if (
           !res.ok ||
           !entityData ||
@@ -41,33 +44,62 @@ export default function Home() {
             (arr) => !Array.isArray(arr) || arr.length === 0
           )
         ) {
+          
           appendLog('No more data or all results empty. Stopping.');
-          break;
+          
+            
         }
-     const values=Object.values(entityData);
-const currentBatch=values[0] as unknown;
-if (Array.isArray(currentBatch)) {
-  if (currentBatch.length < 1000) {
-    appendLog(`Final batch received with ${currentBatch.length} entries`);
-    setDisplayData(currentBatch);
-    break;
-  }
-}
-        const filename = `subgraph_chunk_${chunk}.json`;
-        const blob = new Blob([JSON.stringify(data, null, 2)], {
-          type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
+      
+        const values = Object.values(entityData);
+        console.log('Values array:', values);
+        
+        const currentBatch = values[0];
+        console.log('Current batch:', currentBatch);
+       
+        
+          console.log('Before concat - accumulatedData length:', accumulatedData.length);
+          console.log('Current batch to add:', currentBatch.length, 'items');
+          
+          // Add current batch to accumulated data
+          accumulatedData = accumulatedData.concat(currentBatch);
+          
+          console.log('After concat - accumulatedData length:', accumulatedData.length);
+          console.log('First few items in accumulated data:', accumulatedData.slice(0, 3));
+          
+          // Update display data to show accumulated data
+     
+          
+          // Check if we should download based on frequency (for both regular and final batches)
+          if (accumulatedData.length > 0 && (skip / 1000) % downloadFrequency === 0 && skip > 0) {
+            const filename = `subgraph_chunk_${chunk}.json`;
+            const blob = new Blob([JSON.stringify({ data: accumulatedData }, null, 2)], {
+              type: 'application/json',
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            URL.revokeObjectURL(url);
 
-        appendLog(`Saved ${filename}`);
+            appendLog(`Saved ${filename} with ${accumulatedData.length} entries (after ${downloadFrequency} skips)`);
+            
+            // Reset accumulated data and increment chunk counter
+            accumulatedData = [];
+            chunk += 1;
+          }
+          
+          if (currentBatch.length < 1000) {
+            appendLog(`Final batch received with ${currentBatch.length} entries`);
+            if (accumulatedData.length < downloadFrequency * 1000) {
+              appendLog(`Process completed. Total ${accumulatedData.length} entries collected and displayed on screen.`);
+              setDisplayData(accumulatedData);
+            }
+            break;
+          }
+        
 
         skip += 1000;
-        chunk += 1;
       }
     } catch (err: unknown) {
       const message =
@@ -96,6 +128,19 @@ if (Array.isArray(currentBatch)) {
         onChange={(e) => setSubgraphId(e.target.value)}
         className="w-full p-2 border rounded"
       />
+
+      <div className="flex items-center space-x-2">
+        <label className="text-sm font-medium">Download every:</label>
+        <input
+          type="number"
+          min="1"
+          max="20"
+          value={downloadFrequency}
+          onChange={(e) => setDownloadFrequency(parseInt(e.target.value) || 1)}
+          className="w-20 p-2 border rounded"
+        />
+        <span className="text-sm text-gray-600">skips ({downloadFrequency * 1000} records)</span>
+      </div>
 
       <textarea
         rows={8}
@@ -126,7 +171,7 @@ if (Array.isArray(currentBatch)) {
         ))}
         {displayData.length > 0 && (
   <div className="mt-4">
-    <h2 className="text-lg font-bold">Final Batch Data</h2>
+    <h2 className="text-lg font-bold">Accumulated Data ({displayData.length} total entries)</h2>
     <pre className="bg-gray-100 p-4 rounded max-h-[400px] overflow-y-auto text-sm">
       {JSON.stringify(displayData, null, 2)}
     </pre>
