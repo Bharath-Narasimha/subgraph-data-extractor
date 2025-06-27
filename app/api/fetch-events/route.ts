@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     const url = `https://gateway.thegraph.com/api/${apiKey}/subgraphs/id/${subgraphId}`;
 
     // Extract top-level entities from the query
-    const topLevelEntities = Array.from(query.matchAll(/^\s*(\w+)\s*{/gm))
+    {/*const topLevelEntities = Array.from(query.matchAll(/^\s*(\w+)\s*{/gm))
       .map(([, entity]) => entity)
       .filter((e) => !['query', 'mutation', 'subscription'].includes(e));
       console.log('Top-level entities:', topLevelEntities);
@@ -58,20 +58,15 @@ export async function POST(req: NextRequest) {
            : fields.includes('createdAt') ? 'createdAt'
            : fields.includes('proposalId') ? 'proposalId'
            : 'id';
-    }
+    }*/}
 
-    const orderByMap: Record<string, string> = {};
-    for (const entity of topLevelEntities) {
-      orderByMap[entity] = await getOrderByField(entity);
-      console.log(`Order by for ${entity}:`, orderByMap[entity]);
-    }
+   
 
     const modifiedQuery = query.replace(
       /^(\s*)(\w+)(\s*)({)/gm,
       (match, indent, field, space, brace) => {
         if (["query", "mutation", "subscription"].includes(field)) return match;
-        const orderBy = orderByMap[field] || 'id';
-        return `${indent}${field}(first: 1000, skip: ${skip}, orderBy: ${orderBy}, orderDirection: asc)${space}${brace}`;
+        return `${indent}${field}(first: 1000, skip: ${skip}, orderBy:timestamp , orderDirection: asc)${space}${brace}`;
       }
     );
     console.log('Modified GraphQL query:', modifiedQuery);
