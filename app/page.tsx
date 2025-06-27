@@ -24,6 +24,8 @@ export default function Home() {
     let chunk = 0;
     let accumulatedData: any[] = [];
     let jsonChunks: { name: string, content: string }[] = [];
+    let zipIndex = 0;
+    let currentZip = new JSZip();
 
     try {
       while (true) {
@@ -49,7 +51,7 @@ export default function Home() {
         ) {
           
           appendLog('No more data or all results empty. Stopping.');
-          
+          break;
             
         }
       
@@ -70,6 +72,7 @@ export default function Home() {
           // Check if we should download based on frequency (for both regular and final batches)
           if (accumulatedData.length > 0 && (skip / 1000) % downloadFrequency === 0 && skip > 0) {
             jsonChunks.push({ name: `chunk_${chunk}.json`, content: JSON.stringify({ data: accumulatedData }, null, 2) });
+            currentZip.file(`chunk_${chunk}.json`, JSON.stringify({ data: accumulatedData }, null, 2));
             
             // Reset accumulated data and increment chunk counter
             accumulatedData = [];
@@ -80,6 +83,7 @@ export default function Home() {
             appendLog(`Final batch received with ${currentBatch.length} entries`);
             if (accumulatedData.length > 0) {
               jsonChunks.push({ name: `chunk_${chunk}.json`, content: JSON.stringify({ data: accumulatedData }, null, 2) });
+              currentZip.file(`chunk_${chunk}.json`, JSON.stringify({ data: accumulatedData }, null, 2));
             }
             break;
           }
@@ -88,19 +92,16 @@ export default function Home() {
         skip += 1000;
       }
 
-      if (jsonChunks.length > 0) {
-        const zip = new JSZip();
-        jsonChunks.forEach(chunk => {
-          zip.file(chunk.name, chunk.content);
-        });
-        const zipBlob = await zip.generateAsync({ type: 'blob' });
+      if (Object.keys(currentZip.files).length > 0) {
+        const zipBlob = await currentZip.generateAsync({ type: 'blob' });
         const url = URL.createObjectURL(zipBlob);
         const a = document.createElement('a');
+        const zipPartName = zipFileName.replace(/\.zip$/, '') + `_part${zipIndex}.zip`;
         a.href = url;
-        a.download = zipFileName.endsWith('.zip') ? zipFileName : zipFileName + '.zip';
+        a.download = zipPartName;
         a.click();
         URL.revokeObjectURL(url);
-        appendLog(`Downloaded zip file: ${zipFileName}`);
+        appendLog(`Downloaded zip file: ${zipPartName} (size: ${(zipBlob.size / (1024*1024)).toFixed(2)} MB)`);
       }
     } catch (err: unknown) {
       const message =
