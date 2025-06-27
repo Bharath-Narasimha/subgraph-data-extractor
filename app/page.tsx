@@ -20,6 +20,7 @@ export default function Home() {
   const [subgraphProgress, setSubgraphProgress] = useState<Array<{ percentage: number; recordsFetched: number; estimatedTime: string; status: string }>>([
     { percentage: 0, recordsFetched: 0, estimatedTime: 'Calculating...', status: 'Waiting' }
   ]);
+  const [zipSizeLimitMB, setZipSizeLimitMB] = useState<number>(250);
 
   const appendLog = (msg: string) => setLog((prev) => [...prev, msg]);
 
@@ -149,7 +150,7 @@ export default function Home() {
 
           // Check zip size after each batch
           const zipBlob = await currentZip.generateAsync({ type: 'blob' });
-          if (zipBlob.size >= 250 * 1024 * 1024) { // 250 MB
+          if (zipBlob.size >= zipSizeLimitMB * 1024 * 1024) {
             const url = URL.createObjectURL(zipBlob);
             const a = document.createElement('a');
             const zipPartName = subgraph.fileName.replace(/\.zip$/, '') + `${zipIndex}.zip`;
@@ -213,7 +214,7 @@ export default function Home() {
   return (
     <div className='min-h-screen bg-gray-50 flex flex-col items-center justify-center p-8 space-y-6'>
     <div className='w-full max-w-md space-y-4'>
-      
+    <label className="text-sm font-medium text-gray-700">Enter API Key:</label>
       <input
         type="text"
         placeholder="Enter API Key"
@@ -270,6 +271,19 @@ export default function Home() {
           className="w-20 p-2 border rounded"
         />
         <span className="text-sm text-gray-600">skips ({downloadFrequency * 1000} records)</span>
+      </div>
+
+      <div className="flex items-center space-x-2">
+        <label className="text-sm font-medium">Zip size limit (MB):</label>
+        <input
+          type="number"
+          min="50"
+          max="1024"
+          value={zipSizeLimitMB}
+          onChange={e => setZipSizeLimitMB(Number(e.target.value) || 250)}
+          className="w-24 p-2 border rounded"
+        />
+        <span className="text-sm text-gray-600">per subgraph zip</span>
       </div>
 
       <textarea
