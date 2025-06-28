@@ -3,6 +3,12 @@
 import { useState } from 'react';
 import JSZip from 'jszip';
 
+// Helper function to shorten subgraph IDs
+function shortSubgraphId(id: string) {
+  if (!id || id.length <= 6) return id;
+  return id.slice(0, 2) + '...' + id.slice(-2);
+}
+
 export default function Home() {
   const [apiKey, setApiKey] = useState<string>('');
   const [query, setQuery] = useState<string>('');
@@ -92,7 +98,7 @@ export default function Home() {
               (arr) => !Array.isArray(arr) || arr.length === 0
             )
           ) {
-            appendLog(`No more data for subgraph ${subgraph.id}. Stopping.`);
+            appendLog(`No more data for subgraph ${shortSubgraphId(subgraph.id)}. Stopping.`);
             break;
           }
         
@@ -158,14 +164,14 @@ export default function Home() {
             a.download = zipPartName;
             a.click();
             URL.revokeObjectURL(url);
-            appendLog(`Downloaded zip file for ${subgraph.id}: ${zipPartName} (size: ${(zipBlob.size / (1024*1024)).toFixed(2)} MB)`);
+            appendLog(`Downloaded zip file for ${shortSubgraphId(subgraph.id)}: ${zipPartName} (size: ${(zipBlob.size / (1024*1024)).toFixed(2)} MB)`);
             // Reset for next zip
             zipIndex++;
             currentZip = new JSZip();
           }
 
           if (currentBatch.length < 1000) {
-            appendLog(`Final batch received with ${currentBatch.length} entries for subgraph ${subgraph.id}`);
+            appendLog(`Final batch received with ${currentBatch.length} entries for subgraph ${shortSubgraphId(subgraph.id)}`);
             if (accumulatedData.length > 0) {
               currentZip.file(`chunk_${chunk}.json`, JSON.stringify({ data: accumulatedData }, null, 2));
             }
@@ -185,7 +191,7 @@ export default function Home() {
           a.download = zipPartName;
           a.click();
           URL.revokeObjectURL(url);
-          appendLog(`Downloaded zip file for ${subgraph.id}: ${zipPartName} (size: ${(zipBlob.size / (1024*1024)).toFixed(2)} MB)`);
+          appendLog(`Downloaded zip file for ${shortSubgraphId(subgraph.id)}: ${zipPartName} (size: ${(zipBlob.size / (1024*1024)).toFixed(2)} MB)`);
         }
         setSubgraphProgress(prev => {
           const updated = [...prev];
@@ -197,7 +203,7 @@ export default function Home() {
           };
           return updated;
         });
-        appendLog(`Completed subgraph ${subgraph.id} (${subgraphRecordsFetched} records)`);
+        appendLog(`Completed subgraph ${shortSubgraphId(subgraph.id)} (${subgraphRecordsFetched} records)`);
       }));
 
       setProgress({ percentage: 100, recordsFetched: totalRecordsFetched, estimatedTime: 'Complete!' });
@@ -312,7 +318,7 @@ export default function Home() {
         <div key={idx} className="mt-6 mb-6 p-4 bg-gray-50 border border-gray-300 rounded-lg shadow-sm flex flex-col space-y-2">
           <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-2 space-y-1 sm:space-y-0">
             <span className="text-sm font-semibold text-gray-800">
-              Subgraph: <span className="text-blue-700">{subgraphs[idx]?.id || 'N/A'}</span>
+              Subgraph: <span className="text-blue-700">{shortSubgraphId(subgraphs[idx]?.id) || 'N/A'}</span>
             </span>
             <span className="text-xs text-gray-600">
               File: <span className="font-mono text-gray-700">{subgraphs[idx]?.fileName || 'N/A'}</span>
