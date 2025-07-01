@@ -70,7 +70,7 @@ export default function Home() {
 
         let skip = 0;
         let chunk = 0;
-        let accumulatedData: any[] = [];
+        let accumulatedData: Record<string, any[]> = {};
         let zipIndex = 0;
         let currentZip = new JSZip();
         let subgraphRecordsFetched = 0;
@@ -102,9 +102,22 @@ export default function Home() {
             break;
           }
         
-          const values = Object.values(entityData);
-          const currentBatch = values[0];
-          accumulatedData = accumulatedData.concat(currentBatch);
+          // Get the first entity from the data
+          const entityKeys = Object.keys(entityData);
+          const firstEntityKey = entityKeys[0];
+          const currentBatch = entityData[firstEntityKey] as any[];
+          
+          // Initialize accumulatedData structure if it's empty
+          if (Object.keys(accumulatedData).length === 0) {
+            accumulatedData = { [firstEntityKey]: [] };
+          }
+          
+          // Add the current batch to the accumulated data
+          if (accumulatedData[firstEntityKey]) {
+            accumulatedData[firstEntityKey] = [...accumulatedData[firstEntityKey], ...currentBatch];
+          } else {
+            accumulatedData[firstEntityKey] = currentBatch;
+          }
           subgraphRecordsFetched += currentBatch.length;
           totalRecordsFetched += currentBatch.length;
 
@@ -148,9 +161,9 @@ export default function Home() {
           });
 
           // Add chunk to zip
-          if (accumulatedData.length > 0 && (skip / 1000) % downloadFrequency === 0 && skip > 0) {
+          if (Object.keys(accumulatedData).length > 0 && (skip / 1000) % downloadFrequency === 0 && skip > 0) {
             currentZip.file(`chunk_${chunk}.json`, JSON.stringify({ data: accumulatedData }, null, 2));
-            accumulatedData = [];
+            accumulatedData = {};
             chunk += 1;
           }
 
@@ -172,7 +185,7 @@ export default function Home() {
 
           if (currentBatch.length < 1000) {
             appendLog(`Final batch received with ${currentBatch.length} entries for subgraph ${shortSubgraphId(subgraph.id)}`);
-            if (accumulatedData.length > 0) {
+            if (Object.keys(accumulatedData).length > 0) {
               currentZip.file(`chunk_${chunk}.json`, JSON.stringify({ data: accumulatedData }, null, 2));
             }
             break;
